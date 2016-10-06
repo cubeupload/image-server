@@ -55,9 +55,9 @@ $app->singleton(
 $app->singleton(
     'DataLibrary',
     function($app){
-        return new DataLibrary(env('CONTENT_LIBRARY_DIR'));
+        return new CubeUpload\Storage\DataLibrary(env('CONTENT_LIBRARY_DIR'));
     }
-)
+);
 
 /*
 |--------------------------------------------------------------------------

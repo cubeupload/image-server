@@ -14,21 +14,10 @@
 //$pid = getmypid();
 //Redis::hmset('pid:' . $pid, 'lastreq', Request::path(), 'time', time(), 'client', Request::server('REMOTE_ADDR'), 'ref', Request::server('HTTP_REFERER'));
 
+use Illuminate\Http\Request;
+
 $app->get('/', function () use ($app) {
 	return redirect('http://cubeupload.com');
-});
-
-$app->get('proxytest', function()
-{
-	return var_dump( $_SERVER );
-});
-
-$app->get('/touchtest', function()
-{
-	$file = split_filename('1oiEfj.jpg');
-	$path = env('GUEST_IMAGES_DIR') . '/' . $file;
-
-	touch($path);
 });
 
 $app->get('/{user}/t/{file}', function( $user, $file )
@@ -44,64 +33,96 @@ $app->get('/{user}/t/{file}', function( $user, $file )
 		$mime = finfo_file($finfo, $path);
 		finfo_close($finfo);
 
-		if( Redis::exists( $filename . ':thumb' ) )
+		if( Cache::has( $filename . ':thumb' ) )
 		{
-			$thumb = Redis::get( $filename . ':thumb' );
-			Redis::expire( $filename . ':thumb', $thumb_exp );
+			$thumb = Cache::get( $filename . ':thumb' );
 		}
 		else
 		{
 			$thumb = generateThumb( $path );
-			Redis::setex( $filename . ':thumb', $thumb_exp, $thumb );
+			Cache::put( $filename . ':thumb', $thumb, $thumb_exp );
 		}
 
 		return response($thumb)->header('Content-Type', $mime);
 	}
 	else
 	{
-		Redis::del( $filename .':thumb' );
+		Cache::forget( $filename .':thumb' );
 		return response('Not found.', 404);
 	}	
 });
 
-$app->get('/t/{file}', function( $filename )
+$app->get('/t/{file}', function( $filename ) use ($app)
 {
 	$file = split_filename( $filename );
 	$path = env("GUEST_IMAGES_DIR") . '/' . $file;
 	$thumb_exp = env("CACHE_THUMB_EXPIRE");
 	$thumb = null;
+	$mime = null;
 
 	$sTime = microtime(true);
 
-	if( file_exists( $path ) )
+	if( file_exists( $path ) ) // load from original store
 	{
 		$finfo = finfo_open(FILEINFO_MIME_TYPE);
 		$mime = finfo_file($finfo, $path);
 		finfo_close($finfo);
 
-		if( Redis::exists( $filename . ':thumb' ) )
-		{
-			$thumb = Redis::get( $filename . ':thumb' );
-			Redis::expire( $filename . ':thumb', $thumb_exp );
-		}
+		if( Cache::has( $filename . ':thumb' ) )
+			$thumb = Cache::get( $filename . ':thumb' );
 		else
 		{
 			$thumb = generateThumb( $path );
-			Redis::setex( $filename . ':thumb', $thumb_exp, $thumb );
+			Cache::put( $filename . ':thumb', $thumb, $thumb_exp );
 		}
-
-		return response($thumb)->header('Content-Type', $mime)->header('X-App-Time', ( microtime(true) - $sTime ));
 	}
+	else if (($img = $app['DataLibrary']->get($filename)) && $img !== false) // load from new library
+	{
+		$mime = $app['DataLibrary']->getMimeType($filename);
+
+		if( Cache::has( $filename . ':thumb' ) )
+			$thumb = Cache::get( $filename . ':thumb' );
+		else
+		{
+			$thumb_dir = storage_path('thumbs_wip' . '/' . str_random(8));
+			$thumb_wip = $thumb_dir . '/' . $filename;
+			mkdir($thumb_dir, null, true);
+			file_put_contents($thumb_wip, $img);
+			$thumb = generateThumb($thumb_wip);
+			unlink($thumb_wip);
+			rmdir($thumb_dir);
+			Cache::put($filename . ':thumb', $thumb, $thumb_exp);
+		}
+	}
+	
+	if ($thumb != null)
+		return response($thumb)->header('Content-Type', $mime)->header('X-App-Time', ( microtime(true) - $sTime ));
 	else
 	{
-		Redis::del( $filename .':thumb' ); 
+		Cache::forget( $filename .':thumb' ); 
 		return response('Not found.', 404);
 	}
 
 });
 
-$app->get('{file}', function( $filename )
+$app->get('{file}', function( Request $request, $filename ) use ($app)
 {
+	$result = $app["DataLibrary"]->get($filename);
+
+	if( $result !== false)
+	{
+		$response = response($result);
+		
+		$mime = $app["DataLibrary"]->getMimeType($filename);
+
+		if($mime === false)
+			$mime = "application/octet-string";
+
+		return response($result)
+			->header("Content-Type", $mime)
+			->header("X-Delivered-By", "Content Library");
+	}
+		
 	$file = split_filename( $filename );
 	$path = env("GUEST_IMAGES_DIR") . '/' . $file;
 
@@ -113,28 +134,17 @@ $app->get('{file}', function( $filename )
 		$mime = finfo_file($finfo, $path);
 		finfo_close($finfo);
 
-		/*
-		try
-		{
-			Redis::hmset( $filename .':info', 'mimetype', $mime, 'lastview', time() );
-
-			$viewer = [
-				'ip' => Request::server('REMOTE_ADDR'),
-				'at' => time(),
-				'from' => Request::server('HTTP_REFERER')
-			];
-		
-			Redis::sadd( $filename . ':views', json_encode($viewer));
-		}
-		catch( \Predis\Connection\ConnectionException $ex )
-		{
-			Log::error( 'ANON: ' . $filename . ' - ' . $ex->getMessage(), $ex );
-		}
-		*/
 		return response(file_get_contents($path))->header('Content-Type', $mime)->header( 'X-App-Time', (microtime(true)-$sTime));
 	}
 	else
 	{
+		$content = $app['DataLibrary']->get($filename);
+
+		if( $content !== false)
+		{
+			$mime = $app['DataLibrary']->getMimeType($filename);
+			return response($content)->hader('Content-Type', $mime);
+		}
 		// Redis::hset( $filename . ':info', 'deleted', 1 );
 		return response('Not found.', 404);
 	}
@@ -150,25 +160,6 @@ $app->get('{user}/{file}', function( $user, $file )
 		$finfo = finfo_open(FILEINFO_MIME_TYPE);
 		$mime = finfo_file($finfo, $path);
 		finfo_close($finfo);
-
-		/*
-		try
-		{
-			Redis::hmset( $filename .':info', 'mimetype', $mime, 'lastview', time() );
-
-			$viewer = [
-				'ip' => Request::server('REMOTE_ADDR'),
-				'at' => time(),
-				'from' => Request::server('HTTP_REFERER')
-			];
-
-			Redis::sadd( $filename . ':views', json_encode($viewer));
-		}
-		catch( \Predis\Connection\ConnectionException $ex )
-		{
-			Log::error( 'USER: ' . $path . ' - ' . $ex->getMessage() );
-		}
-		*/
 		
 		return response(file_get_contents($path))->header('Content-Type', $mime);
 	}
