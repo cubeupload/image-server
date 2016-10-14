@@ -96,7 +96,7 @@ $app->singleton(
 // $app->register(App\Providers\AppServiceProvider::class);
 // $app->register(App\Providers\EventServiceProvider::class);
 
-class_alias('Illuminate\Support\Facades\Redis', 'Redis');
+//class_alias('Illuminate\Support\Facades\Redis', 'Redis');
 
 /*
 |--------------------------------------------------------------------------
