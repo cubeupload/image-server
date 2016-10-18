@@ -86,7 +86,7 @@ $app->get('/t/{file}', function( $filename ) use ($app)
 		{
 			$thumb_dir = storage_path('thumbs_wip' . '/' . str_random(8));
 			$thumb_wip = $thumb_dir . '/' . $filename;
-			mkdir($thumb_dir, null, true);
+			mkdir($thumb_dir, 0775, true);
 			file_put_contents($thumb_wip, $img);
 			$thumb = generateThumb($thumb_wip);
 			unlink($thumb_wip);
