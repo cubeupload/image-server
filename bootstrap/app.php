@@ -2,7 +2,11 @@
 
 require_once __DIR__.'/../vendor/autoload.php';
 
-Dotenv::load(__DIR__.'/../');
+try {
+    (new Dotenv\Dotenv(__DIR__.'/../'))->load();
+} catch (Dotenv\Exception\InvalidPathException $e) {
+    //
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -19,7 +23,7 @@ $app = new Laravel\Lumen\Application(
     realpath(__DIR__.'/../')
 );
 
-$app->withFacades();
+// $app->withFacades();
 
 // $app->withEloquent();
 
@@ -44,21 +48,6 @@ $app->singleton(
     App\Console\Kernel::class
 );
 
-$app->singleton(
-	'Carbon',
-	function($app)
-	{
-		return new Carbon\Carbon;
-	}
-);
-
-$app->singleton(
-    'DataLibrary',
-    function($app){
-        return new CubeUpload\Storage\DataLibrary(env('CONTENT_LIBRARY_DIR'));
-    }
-);
-
 /*
 |--------------------------------------------------------------------------
 | Register Middleware
@@ -71,15 +60,11 @@ $app->singleton(
 */
 
 // $app->middleware([
-//     // Illuminate\Cookie\Middleware\EncryptCookies::class,
-//     // Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
-//     // Illuminate\Session\Middleware\StartSession::class,
-//     // Illuminate\View\Middleware\ShareErrorsFromSession::class,
-//     // Laravel\Lumen\Http\Middleware\VerifyCsrfToken::class,
+//    App\Http\Middleware\ExampleMiddleware::class
 // ]);
 
 // $app->routeMiddleware([
-
+//     'auth' => App\Http\Middleware\Authenticate::class,
 // ]);
 
 /*
@@ -94,9 +79,8 @@ $app->singleton(
 */
 
 // $app->register(App\Providers\AppServiceProvider::class);
+// $app->register(App\Providers\AuthServiceProvider::class);
 // $app->register(App\Providers\EventServiceProvider::class);
-
-//class_alias('Illuminate\Support\Facades\Redis', 'Redis');
 
 /*
 |--------------------------------------------------------------------------
@@ -110,7 +94,7 @@ $app->singleton(
 */
 
 $app->group(['namespace' => 'App\Http\Controllers'], function ($app) {
-    require __DIR__.'/../app/Http/routes.php';
+    require __DIR__.'/../routes/web.php';
 });
 
 return $app;
