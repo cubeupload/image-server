@@ -1,21 +1,33 @@
-# Lumen PHP Framework
+# cubeupload image server
 
-[![Build Status](https://travis-ci.org/laravel/lumen-framework.svg)](https://travis-ci.org/laravel/lumen-framework)
-[![Total Downloads](https://poser.pugx.org/laravel/lumen-framework/d/total.svg)](https://packagist.org/packages/laravel/lumen-framework)
-[![Latest Stable Version](https://poser.pugx.org/laravel/lumen-framework/v/stable.svg)](https://packagist.org/packages/laravel/lumen-framework)
-[![Latest Unstable Version](https://poser.pugx.org/laravel/lumen-framework/v/unstable.svg)](https://packagist.org/packages/laravel/lumen-framework)
-[![License](https://poser.pugx.org/laravel/lumen-framework/license.svg)](https://packagist.org/packages/laravel/lumen-framework)
+# About
 
-Laravel Lumen is a stunningly fast PHP micro-framework for building web applications with expressive, elegant syntax. We believe development must be an enjoyable, creative experience to be truly fulfilling. Lumen attempts to take the pain out of development by easing common tasks used in the majority of web projects, such as routing, database abstraction, queueing, and caching.
+This is the image server component of cubeupload.
 
-## Official Documentation
+# Intended use
 
-Documentation for the framework can be found on the [Lumen website](http://lumen.laravel.com/docs).
+The image server is designed to sit behind a reverse cache such as Varnish. The image server doesn't do any content caching.
 
-## Security Vulnerabilities
+A typical request looks like:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell at taylor@laravel.com. All security vulnerabilities will be promptly addressed.
+Request > nginx https proxy > varnish cache > nginx image server vhost > php-fpm > S3
 
-## License
+## nginx https proxy
 
-The Lumen framework is open-sourced software licensed under the [MIT license](http://opensource.org/licenses/MIT)
+nginx handles incoming HTTPS requests because Varnish doesn't support ssl/tls. HTTP requests can be sent straight to the Varnish cache.
+
+
+## Varnish
+
+The Varnish component caches any results from the image server. The idea is to minimise the amount of communication with S3 to help save on bills.
+
+Deletion requests from the cubeupload backend will contact the Varnish caches to ensure files are deleted everywhere. The deletion request should also be passed to the image server.
+
+
+## Image Server
+
+The image server does the real work. It accepts incoming file requests, looks up the filename in the database (or cache), retrieves from S3 and returns to the requestor.
+
+Hash lookups should be cached to reduce the number of database requests if the cache expires.
+
+Deletion requests should also reach the image server so it can clear its own caches. The actual S3 content is managed by the backend.
