@@ -26,3 +26,6 @@ $app->group(['middleware' => 'purgeauth'], function () use ($app){
     $app->delete('/{filename}', 'ImageController@deleteGuestImage');
     $app->delete('/{username}/{filename}', 'ImageController@deleteUserImage');
 });
+
+
+$app->get('/hash/{hash}', 'ImageController@getHash');

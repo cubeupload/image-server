@@ -41,4 +41,14 @@ class ImageController extends Controller
     {
 
     }
+
+    public function getHash(Request $request, $hash)
+    {
+        $hash_path = split_to_path($hash);
+        if (Storage::disk('s3')->has($hash_path))
+        {
+            return response(Storage::disk('s3')->get($hash_path))
+                ->header('Content-Type', 'application/octet-stream');
+        }
+    }
 }

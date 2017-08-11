@@ -5,6 +5,30 @@ use Laravel\Lumen\Testing\DatabaseTransactions;
 
 class ImageServerTest extends TestCase
 {
+    public static $pngStub = [];
+
+    public static function setUpBeforeClass()
+    {
+        static::$pngStub['file'] = __DIR__ . '/stubs/testimage.png';
+        static::$pngStub['size'] = filesize(static::$pngStub['file']);
+        static::$pngStub['hash'] = md5_file(static::$pngStub['file']);
+        static::$pngStub['mime'] = mime_content_type(static::$pngStub['file']);
+        
+        Storage::disk('s3')->put(split_to_path(static::$pngStub['hash']), file_get_contents(static::$pngStub['file']));
+        DB::table('images')->insert([
+            'filename' => 'testimage.png',
+            'filehash' => static::$pngStub['hash'],
+            'filesize' => static::$pngStub['size'],
+            'mimetype' => static::$pngStub['mime']
+        ]);
+    }
+
+    public static function tearDownAfterClass()
+    {
+        Storage::disk('s3')->delete(split_to_path(static::$pngStub['hash']));
+        DB::table('images')->where('filename', 'testimage.png')->delete();
+    }
+
     /**
      * A basic test example.
      *
@@ -12,26 +36,15 @@ class ImageServerTest extends TestCase
      */
     public function testGuestImage()
     {
-        $stub = __DIR__ .'/stubs/testimage.png';
-        $hash = md5_file($stub);
-
-        Storage::disk('s3')->put(split_to_path($hash), file_get_contents($stub));
-        DB::table('images')->insert([
-            'filename' => 'testimage.png',
-            'filehash' => $hash,
-            'filesize' => filesize($stub),
-            'mimetype' => mime_content_type($stub)
-        ]);
-
         $response = $this->get('/testimage.png');
 
         $this->seeStatusCode(200);
 
         $this->assertEquals(
-            file_get_contents($stub), $this->response->getContent()
+            static::$pngStub['hash'], md5($this->response->getContent())
         );
         
-        $this->assertEquals(filesize($stub), $this->response->headers->get('Content-Length'));
-        $this->assertEquals(mime_content_type($stub), $this->response->headers->get('Content-Type'));
+        $this->assertEquals(static::$pngStub['size'], $this->response->headers->get('Content-Length'));
+        $this->assertEquals(static::$pngStub['mime'], $this->response->headers->get('Content-Type'));
     }
 }
