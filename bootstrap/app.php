@@ -23,9 +23,14 @@ $app = new Laravel\Lumen\Application(
     realpath(__DIR__.'/../')
 );
 
-// $app->withFacades();
+$app->configure('filesystems');
 
-// $app->withEloquent();
+$app->withFacades();
+
+if (!class_exists('Storage'))
+    class_alias('Illuminate\Support\Facades\Storage', 'Storage');
+
+$app->withEloquent();
 
 /*
 |--------------------------------------------------------------------------
@@ -63,9 +68,10 @@ $app->singleton(
 //    App\Http\Middleware\ExampleMiddleware::class
 // ]);
 
-// $app->routeMiddleware([
-//     'auth' => App\Http\Middleware\Authenticate::class,
-// ]);
+$app->routeMiddleware([
+    'imgexists' => App\Http\Middleware\ImageExists::class,
+    'purgeauth' => App\Http\Middleware\PurgeAuth::class
+]);
 
 /*
 |--------------------------------------------------------------------------
@@ -81,6 +87,7 @@ $app->singleton(
 // $app->register(App\Providers\AppServiceProvider::class);
 // $app->register(App\Providers\AuthServiceProvider::class);
 // $app->register(App\Providers\EventServiceProvider::class);
+$app->register(Illuminate\Filesystem\FilesystemServiceProvider::class);
 
 /*
 |--------------------------------------------------------------------------

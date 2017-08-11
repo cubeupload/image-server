@@ -4,7 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 
-class ExampleMiddleware
+class PurgeAuth
 {
     /**
      * Handle an incoming request.
@@ -15,6 +15,15 @@ class ExampleMiddleware
      */
     public function handle($request, Closure $next)
     {
+        if (!$request->has('filename'))
+        {
+            return response('File not supplied.', 400);
+        }
+
+        $filename = $request->input('filename');
+
+        
+
         return $next($request);
     }
 }

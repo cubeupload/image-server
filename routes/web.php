@@ -14,3 +14,15 @@
 $app->get('/', function () use ($app) {
     return $app->version();
 });
+
+$app->group(['middleware' => 'imgexists'], function () use ($app){
+    $app->get('/{filename}', 'ImageController@getGuestImage');
+    $app->get('/t/{filename}', 'ImageController@getGuestThumb');
+    $app->get('/{username}/{filename}', 'ImageController@getUserImage');
+    $app->get('/{username}/t/{filename}', 'ImageController@getUserThumb');
+});
+
+$app->group(['middleware' => 'purgeauth'], function () use ($app){
+    $app->delete('/{filename}', 'ImageController@deleteGuestImage');
+    $app->delete('/{username}/{filename}', 'ImageController@deleteUserImage');
+});
